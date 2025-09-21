@@ -6,21 +6,30 @@
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-100 p-8">
-    <div class="max-w-4xl mx-auto bg-white p-8 rounded-lg shadow-lg">
-        <h1 class="text-3xl font-bold mb-6 text-gray-800">Feedback Dashboard</h1>
-        <a href="/" class="text-blue-600 hover:underline mb-6 block">&larr; Back to Form</a>
+    <div class="max-w-5xl mx-auto bg-white p-8 rounded-lg shadow-lg">
+        <div class="flex justify-between items-center mb-4">
+            <h1 class="text-3xl font-bold text-gray-800">Feedback Dashboard</h1>
+            <a href="{{ url_for('logout') }}" class="text-red-500 hover:underline font-medium">Logout</a>
+        </div>
+        
+        <div class="flex justify-between items-center mb-6">
+             <a href="/" class="text-blue-600 hover:underline">&larr; Back to Form</a>
+             {% if current_filter %}
+                <div class="flex items-center">
+                    <span class="text-gray-600 mr-2">Filtering by: <span class="font-bold text-blue-700">{{ current_filter }}</span></span>
+                    <a href="{{ url_for('dashboard') }}" class="text-sm text-red-500 hover:underline">(Clear Filter)</a>
+                </div>
+             {% endif %}
+        </div>
+
         <table class="min-w-full bg-white">
             <thead class="bg-gray-800 text-white">
                 <tr>
-                    <!-- --- MODIFIED FOR SORTING --- -->
                     <th class="text-left py-3 px-4">
-                        <!-- This is now a link that passes the sort order back to Python -->
-                        <a href="{{ url_for('dashboard', order=next_sort_order) }}" class="hover:underline">
+                        <a href="{{ url_for('dashboard', order=next_sort_order, tag=current_filter) }}" class="hover:underline">
                             Timestamp
                         </a>
                     </th>
-                    <!-- --- END OF MODIFICATION --- -->
-                    <!-- Jinja2 Template Loop -->
                     <th class="text-left py-3 px-4">Name</th>
                     <th class="text-left py-3 px-4">Email</th>
                     <th class="text-left py-3 px-4">Comment</th>
@@ -29,18 +38,16 @@
             </thead>
             <tbody class="text-gray-700">
                 {% for entry in feedback_entries %}
-                <tr class="border-b">
-                    <!-- Format the timestamp to be more readable -->
+                <tr class="border-b hover:bg-gray-50">
                     <td class="py-3 px-4">{{ entry.timestamp.strftime('%Y-%m-%d %H:%M') }}</td>
                     <td class="py-3 px-4">{{ entry.name }}</td>
                     <td class="py-3 px-4">{{ entry.email }}</td>
                     <td class="py-3 px-4">{{ entry.comment }}</td>
-                    <!-- Display the tags -->
                     <td class="py-3 px-4">
                         {% for tag in entry.tags %}
-                            <span class="bg-blue-100 text-blue-800 text-xs font-semibold mr-2 px-2.5 py-0.5 rounded">
+                            <a href="{{ url_for('dashboard', tag=tag) }}" class="inline-block bg-blue-100 text-blue-800 text-xs font-semibold mr-2 px-2.5 py-0.5 rounded hover:bg-blue-200">
                                 {{ tag }}
-                            </span>
+                            </a>
                         {% endfor %}
                     </td>
                 </tr>
