@@ -1,57 +1,52 @@
 '''
 Ernest Ortiz
-IT488 - Module 4
-9/23/2025
-Sprint 3 Update - Security & Confirmation
+IT488 - Module 5
+9/26/2025
+Sprint 4
 '''
 
 from flask import Flask, render_template, request, redirect, url_for, session, flash
 import datetime
+import sqlite3
+import json # Used to store the list of tags as a string in the database
 
-# Create the main web app.
 app = Flask(__name__)
-# A secret key is required by Flask to securely manage user sessions.
-# This should be a long, random string in a real application.
 app.secret_key = 'a_very_secret_key_for_this_project'
+DATABASE = 'feedback.db'
 
-# --- US-06: Simple User Store ---
-# In a real application, this would be a database with hashed passwords.
-# For this project, a simple dictionary is sufficient for authentication.
-VALID_USERS = {
-    "admin": "password123",
-    "support": "supportpass"
-}
+# --- Database Helper Function ---
+# This function helps us connect to the database easily.
+def get_db():
+    conn = sqlite3.connect(DATABASE)
+    # This line lets us access columns by name (like a dictionary).
+    conn.row_factory = sqlite3.Row 
+    return conn
 
-# This list acts as our simple database.
-feedback_list = []
+# --- Security Helper Function ---
+def is_logged_in():
+    return 'username' in session
 
-# Keywords for automatic tagging.
+# --- Keyword Definitions (No change) ---
 KEYWORD_TAGS = {
     "broken": "CRITICAL", "error": "CRITICAL", "slow": "PERFORMANCE",
     "great": "POSITIVE", "love": "POSITIVE", "bad": "NEGATIVE"
 }
 
-# --- Helper function to check if a user is logged in ---
-def is_logged_in():
-    # Checks if 'username' is stored in the session cookie.
-    return 'username' in session
+# --- REMOVED THE IN-MEMORY feedback_list ---
 
-### --- Main Application Routes --- ###
+# --- ROUTES ---
 
 @app.route('/')
 def index():
-    # Shows the main feedback form to the customer.
     return render_template('form.html')
 
 @app.route('/submit', methods=['POST'])
 def submit():
-    # Get all the data from the form fields.
     name = request.form.get('name', 'Anonymous')
     email = request.form.get('email')
     comment = request.form.get('comment')
     timestamp = datetime.datetime.now()
     
-    # Scan the comment for keywords to generate tags.
     tags = []
     comment_lower = comment.lower()
     for keyword, tag in KEYWORD_TAGS.items():
@@ -59,79 +54,93 @@ def submit():
             tags.append(tag)
     if not tags:
         tags.append("GENERAL")
+    
+    # Convert the Python list of tags into a JSON string to store in the database.
+    tags_json = json.dumps(tags)
 
-    # Store the feedback entry as a dictionary.
-    feedback_entry = {
-        'name': name, 'email': email, 'comment': comment,
-        'timestamp': timestamp, 'tags': tags
-    }
+    # --- US-08: DATABASE UPDATE ---
+    # Connect to the database and insert the new record.
+    db = get_db()
+    db.execute('INSERT INTO feedback (name, email, comment, timestamp, tags) VALUES (?, ?, ?, ?, ?)',
+               (name, email, comment, timestamp, tags_json))
+    db.commit() # Save the changes
+    db.close()
+    # --- END OF UPDATE ---
     
-    feedback_list.append(feedback_entry)
-    
-    # --- US-07: Redirect to a confirmation page ---
-    # Instead of showing the dashboard, we redirect to a simple thank-you page.
     return redirect(url_for('thank_you'))
 
-### --- US-07: New Route for Confirmation Page --- ###
 @app.route('/thank-you')
 def thank_you():
-    # This page confirms to the customer that their feedback was received.
-    # It also provides a link to submit another response.
     return render_template('thank-you.html')
-
-### --- US-06: New Routes and Logic for Secure Access --- ###
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    # This route handles both displaying the login form (GET) and processing it (POST).
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
+        
+        # --- US-08: DATABASE UPDATE ---
+        # Check credentials against the 'users' table in the database.
+        db = get_db()
+        user = db.execute('SELECT * FROM users WHERE username = ? AND password = ?', 
+                          (username, password)).fetchone()
+        db.close()
+        # --- END OF UPDATE ---
 
-        # Check if the username exists and the password is correct.
-        if username in VALID_USERS and VALID_USERS[username] == password:
-            session['username'] = username # Store the username in the session.
-            return redirect(url_for('dashboard')) # Redirect to the dashboard on success.
+        if user:
+            session['username'] = user['username']
+            return redirect(url_for('dashboard'))
         else:
-            # If login fails, 'flash' an error message to the login page.
             flash('Invalid username or password.')
             return redirect(url_for('login'))
             
-    # For a GET request, just show the login page.
     return render_template('login.html')
 
 @app.route('/logout')
 def logout():
-    # US-06: The logout link on the dashboard points here.
-    session.pop('username', None) # Remove the username from the session.
-    return redirect(url_for('login')) # Redirect the user to the login page.
+    session.pop('username', None)
+    return redirect(url_for('login'))
 
 @app.route('/dashboard')
 def dashboard():
-    # --- US-06: Protect this route ---
-    # Before displaying the dashboard, check if the user is logged in.
     if not is_logged_in():
-        # If not, redirect them to the login page.
         return redirect(url_for('login'))
     
-    # --- Existing Dashboard Logic (Sorting/Filtering) ---
     sort_order = request.args.get('order', 'desc')
     filter_tag = request.args.get('tag')
     
-    display_list = feedback_list
+    # --- US-08: DATABASE UPDATE ---
+    # Build the SQL query dynamically based on filters and sorting.
+    db = get_db()
+    query = 'SELECT * FROM feedback'
+    params = []
+
     if filter_tag:
-        display_list = [entry for entry in feedback_list if filter_tag in entry['tags']]
-    
-    reverse_sort = sort_order == 'desc'
-    sorted_feedback = sorted(display_list, key=lambda x: x['timestamp'], reverse=reverse_sort)
+        # The LIKE operator helps us find the tag within the JSON string.
+        query += ' WHERE tags LIKE ?'
+        params.append(f'%"{filter_tag}"%') 
+
+    # Add the sorting order to the query.
+    query += f' ORDER BY timestamp {sort_order.upper()}'
+
+    feedback_rows = db.execute(query, params).fetchall()
+    db.close()
+
+    # Convert the database rows into a list of dictionaries.
+    # Also, convert the 'tags' JSON string back into a Python list.
+    feedback_entries = []
+    for row in feedback_rows:
+        entry = dict(row) # Convert the row object to a dictionary
+        entry['tags'] = json.loads(entry['tags']) # Parse the JSON string
+        feedback_entries.append(entry)
+    # --- END OF UPDATE ---
     
     next_order = 'asc' if sort_order == 'desc' else 'desc'
 
     return render_template('dashboard.html', 
-                           feedback_entries=sorted_feedback, 
+                           feedback_entries=feedback_entries, 
                            next_sort_order=next_order,
                            current_filter=filter_tag)
 
-# This makes the app run when the script is executed.
 if __name__ == '__main__':
     app.run(debug=True)
