@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>User Management</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-4xl mx-auto">
+        <div class="bg-white p-8 rounded-lg shadow-lg mb-8">
+            <h1 class="text-2xl font-bold mb-6 text-gray-800">Add New User</h1>
+            <form action="{{ url_for('add_user') }}" method="POST" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                    <label for="username" class="block text-gray-700 font-medium mb-2">Username</label>
+                    <input type="text" name="username" class="w-full px-4 py-2 border rounded-lg" required>
+                </div>
+                <div>
+                    <label for="password" class="block text-gray-700 font-medium mb-2">Password</label>
+                    <input type="password" name="password" class="w-full px-4 py-2 border rounded-lg" required>
+                </div>
+                <div class="md:self-end">
+                    <button type="submit" class="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700">Add User</button>
+                </div>
+            </form>
+        </div>
+
+        <div class="bg-white p-8 rounded-lg shadow-lg">
+            <h1 class="text-2xl font-bold mb-6 text-gray-800">Manage Users</h1>
+            <a href="{{ url_for('dashboard') }}" class="text-blue-600 hover:underline mb-6 block">&larr; Back to Dashboard</a>
+            <table class="min-w-full bg-white">
+                <thead class="bg-gray-800 text-white">
+                    <tr>
+                        <th class="text-left py-3 px-4">Username</th>
+                        <th class="text-left py-3 px-4">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="text-gray-700">
+                    {% for user in users %}
+                    <tr class="border-b">
+                        <td class="py-3 px-4">{{ user.username }}</td>
+                        <td class="py-3 px-4">
+                            {% if user.username != 'admin' %}
+                            <a href="{{ url_for('delete_user', user_id=user.id) }}" class="text-red-500 hover:underline">Delete</a>
+                            {% else %}
+                            <span class="text-gray-400">Cannot Delete</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</body>
+</html>
