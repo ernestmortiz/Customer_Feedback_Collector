@@ -1,8 +1,8 @@
 '''
 Ernest Ortiz
-IT488 - Module 5
-9/26/2025
-Sprint 4
+IT488 - Module 6
+10/1/2025
+v1.0
 '''
 
 from flask import Flask, render_template, request, redirect, url_for, session, flash
@@ -22,9 +22,11 @@ def get_db():
 def is_logged_in():
     return 'username' in session
 
+# Keywords for automatic tagging.
 KEYWORD_TAGS = {
-    "broken": "CRITICAL", "error": "CRITICAL",
-    "slow": "PERFORMANCE", "great": "POSITIVE", "love": "POSITIVE"
+    "broken": "CRITICAL", "error": "CRITICAL", "slow": "PERFORMANCE",
+    "great": "POSITIVE", "love": "POSITIVE", "bad": "NEGATIVE",
+    "fast": "PERFORMANCE", "hate": "NEGATIVE"
 }
 
 @app.route('/')
@@ -106,7 +108,6 @@ def dashboard():
     for row in feedback_rows:
         entry = dict(row)
         entry['tags'] = json.loads(entry['tags'])
-        # FIX FOR ISSUE #2: Convert timestamp string from DB back to datetime object
         if isinstance(entry['timestamp'], str):
              entry['timestamp'] = datetime.datetime.fromisoformat(entry['timestamp'])
         feedback_entries.append(entry)
@@ -122,7 +123,6 @@ def dashboard():
 
 @app.route('/users')
 def manage_users():
-    # FIX FOR ISSUE #1: Correct and explicit security check
     if not is_logged_in() or session.get('username') != 'admin':
         flash('You must be an admin to manage users.', 'error')
         return redirect(url_for('dashboard'))
@@ -166,7 +166,6 @@ def delete_user(user_id):
 
     return redirect(url_for('manage_users'))
 
-# --- FIX FOR ISSUE #3: ADD THE MISSING DELETE_FEEDBACK FUNCTION ---
 @app.route('/delete/<int:feedback_id>')
 def delete_feedback(feedback_id):
     if not is_logged_in():
